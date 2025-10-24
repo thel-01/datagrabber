@@ -28,26 +28,41 @@
 
         .tabs {
             display: flex;
-            border-bottom: 1px solid #ddd;
+            align-items: center;
             margin-bottom: 20px;
         }
 
         .tab-link {
-            padding: 10px 20px;
+            position: relative; /* Needed to position the pseudo-element */
+            padding: 8px 16px;
             cursor: pointer;
-            border: 1px solid transparent;
-            border-bottom: none;
-            margin-bottom: -1px;
-            font-size: 16px;
-            color: #666;
+            border-radius: 20px;
+            font-size: 14px;
+            background-color: #e9ecef;
+            color: #495057;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        /* Add space for the triangle after each tab except the last one */
+        .tab-link:not(:last-child) {
+            margin-right: 24px;
+        }
+
+        /* The triangle separator */
+        .tab-link:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: -17px; /* Position it in the margin space */
+            transform: translateY(-50%);
+            border-top: 6px solid transparent;
+            border-bottom: 6px solid transparent;
+            border-left: 8px solid #b0b0b0; /* A neutral grey for the triangle */
         }
 
         .tab-link.active {
-            border-color: #ddd;
-            border-bottom: 1px solid white;
-            border-radius: 4px 4px 0 0;
-            background: white;
-            color: #007bff;
+            background-color: #6c757d;
+            color: #fff;
             font-weight: 600;
         }
 
@@ -70,7 +85,7 @@
             background: #007bff;
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 20px;
             cursor: pointer;
             font-size: 14px;
             transition: background 0.2s;
@@ -296,9 +311,9 @@
         <h1>Datagrabber</h1>
 
         <div class="tabs">
-            <div class="tab-link active" id="tab1">Step 1: Upload Image</div>
-            <div class="tab-link" id="tab2">Step 2: Set Scale</div>
-            <div class="tab-link" id="tab3">Step 3: Grab Data</div>
+            <div class="tab-link active" id="tab1">Upload Image</div>
+            <div class="tab-link" id="tab2">Set Scale</div>
+            <div class="tab-link" id="tab3">Grab Data</div>
         </div>
 
         <div id="step1Content">
@@ -448,10 +463,8 @@
         ];
 
         // --- Tab Navigation ---
-        function goToStep(step) {
-            if (step === currentStep) return;
-
-            // Disable clicking future steps
+        function goToStep(step, { force = false } = {}) {
+            if (step === currentStep && !force) return;
             if (step > 1 && !image) return;
             if (step > 2 && (scaleLines.length < 2 || !scale1Input.value || !scale2Input.value)) return;
 
@@ -472,7 +485,7 @@
                     uploadAreaWrapper.style.maxWidth = ''; // Allow it to take full flex width
                     uploadAreaSpacer.classList.remove('hidden'); // Show spacer
                     uploadAreaMainText.innerHTML = '<strong>Paste a new image from clipboard (Ctrl/Cmd + V)</strong>';
-                    updateImagePreview();
+                    // updateImagePreview() is now called directly after image.onload
                 } else {
                     imagePreviewWrapper.classList.add('hidden');
                     uploadContainer.style.justifyContent = 'center'; // Center the flex item
@@ -564,8 +577,20 @@
                 image.onload = () => {
                     canvas.width = image.width;
                     canvas.height = image.height;
-                    resetFullState(); // Perform a full reset of state for a new image
-                    updateImagePreview(); // Update preview with new image info
+
+                    // --- New, more robust flow ---
+                    // 1. Reset all data model state
+                    series = [[]];
+                    currentSeriesIndex = 0;
+                    scaleLines = [];
+                    draggingLine = null;
+                    history = [];
+                    scale1Input.value = '';
+                    scale2Input.value = '';
+
+                    // 2. Update the UI now that the image is fully loaded and state is reset
+                    updateImagePreview();
+                    goToStep(1, { force: true }); // This will now correctly show the preview
                     updateTabAccessibility();
                 };
                 image.src = e.target.result;
@@ -644,24 +669,6 @@
             updateStatus();
             draw();
         }
-
-        // New function for a complete reset, used when a new image is loaded
-        function resetFullState() {
-            series = [[]];
-            currentSeriesIndex = 0;
-            scaleLines = [];
-            draggingLine = null;
-            history = []; // Clear history on full reset
-            scale1Input.value = '';
-            scale2Input.value = '';
-            // image and currentImageFile are already set by loadImage
-            updateImagePreview(); // Update preview with new image info
-            goToStep(2); // Always go to step 2 after loading a new image
-            updateStatus();
-            updateOutput();
-            draw();
-        }
-
 
 
         function reset() {
@@ -757,28 +764,30 @@
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
+            const { scaleX, scaleY } = getCanvasScale();
+            const originalX = x / scaleX;
+            const originalY = y / scaleY;
 
             // Check if clicking on an existing line handle
-            const clickedLine = findLineAtPoint(x, y);
+            const clickedLine = findLineAtPoint(originalX, originalY);
 
             if (clickedLine) {
                 draggingLine = clickedLine;
-                const currentPos = isVertical ? clickedLine.pos : clickedLine.pos;
-                dragOffset = (isVertical ? x : y) - currentPos;
+                const currentPos = isVertical ? clickedLine.pos : clickedLine.pos; // This is in original coords
                 e.preventDefault();
                 return;
             }
 
             // If not dragging, place a new line (save state first)
             saveState();
-            if (currentStep === 2 && scaleLines.length < 2) {
-                scaleLines.push({ pos: isVertical ? x : y, fixedCoord: isVertical ? y : x });
+            if (currentStep === 2 && scaleLines.length < 2) { // Place in original coords
+                scaleLines.push({ pos: isVertical ? originalX : originalY, fixedCoord: isVertical ? originalY : originalX });
                 if (scaleLines.length === 2) {
                     showScaleModal(2, e.clientX, e.clientY);
                     updateTabAccessibility();
                 }
             } else if (currentStep === 3 && scale1Input.value && scale2Input.value) {
-                series[currentSeriesIndex].push({ pos: isVertical ? x : y, fixedCoord: isVertical ? y : x });
+                series[currentSeriesIndex].push({ pos: isVertical ? originalX : originalY, fixedCoord: isVertical ? originalY : originalX });
                 updateOutput();
             } else {
                 history.pop(); // Don't save state if no action was taken
@@ -794,10 +803,13 @@
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
+            const { scaleX, scaleY } = getCanvasScale();
+            const originalX = x / scaleX;
+            const originalY = y / scaleY;
 
             if (draggingLine) {
                 // Apply drag sensitivity
-                const rawPos = (isVertical ? x : y) - dragOffset;
+                const rawPos = (isVertical ? originalX : originalY) - dragOffset; // Convert mouse pos to original coords
                 const currentPos = draggingLine.pos;
                 const delta = (rawPos - currentPos) * DRAG_SENSITIVITY;
                 draggingLine.pos = currentPos + delta;
@@ -806,8 +818,9 @@
                 draw();
                 e.preventDefault();
             } else {
-                // Update cursor if hovering over a handle
-                const hoveredLine = findLineAtPoint(x, y);
+                // Update cursor if hovering over a handle (use original coords)
+                const hoveredLine = findLineAtPoint(originalX, originalY);
+                // Update cursor if hovering over a handle (use original coords)
                 canvas.style.cursor = hoveredLine ? 'grab' : 'crosshair';
             }
         });
@@ -841,6 +854,16 @@
                 }
             }
             return null;
+        }
+
+        function getCanvasScale() {
+            if (!image || !canvas) return { scaleX: 1, scaleY: 1 };
+            const displayWidth = canvas.offsetWidth;
+            const displayHeight = canvas.offsetHeight;
+            return {
+                scaleX: displayWidth / image.width,
+                scaleY: displayHeight / image.height
+            };
         }
 
         function isNearHandle(x, y, line) {
@@ -939,6 +962,7 @@
         document.addEventListener('mouseup', () => isDraggingModal = false);
 
         function draw() {
+            const { scaleX, scaleY } = getCanvasScale();
             if (!image) return;
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -946,6 +970,8 @@
 
             // Draw scale lines (red)
             if (currentStep >= 2) { scaleLines.forEach((line, index) => {
+                const displayPos = line.pos * (isVertical ? scaleX : scaleY);
+                const displayFixedCoord = line.fixedCoord * (isVertical ? scaleY : scaleX);
                 const isScaleStep = currentStep === 2;
                 const isActive = draggingLine === line;
                 
@@ -960,36 +986,36 @@
                 if (isActive) {
                     // Draw full line when active
                     if (isVertical) {
-                        ctx.moveTo(line.pos, 0);
-                        ctx.lineTo(line.pos, canvas.height);
+                        ctx.moveTo(displayPos, 0);
+                        ctx.lineTo(displayPos, canvas.height * scaleY); // Use scaled canvas height for end point
                     } else {
-                        ctx.moveTo(0, line.pos);
-                        ctx.lineTo(canvas.width, line.pos);
+                        ctx.moveTo(0, displayPos);
+                        ctx.lineTo(canvas.width * scaleX, displayPos); // Use scaled canvas width for end point
                     }
                 } else {
                     // Draw short line around crosshair when inactive
                     if (isVertical) {
-                        ctx.moveTo(line.pos, Math.max(0, line.fixedCoord - INACTIVE_LINE_LENGTH));
-                        ctx.lineTo(line.pos, Math.min(canvas.height, line.fixedCoord + INACTIVE_LINE_LENGTH));
+                        ctx.moveTo(displayPos, Math.max(0, displayFixedCoord - INACTIVE_LINE_LENGTH));
+                        ctx.lineTo(displayPos, Math.min(canvas.height * scaleY, displayFixedCoord + INACTIVE_LINE_LENGTH));
                     } else {
-                        ctx.moveTo(Math.max(0, line.fixedCoord - INACTIVE_LINE_LENGTH), line.pos);
-                        ctx.lineTo(Math.min(canvas.width, line.fixedCoord + INACTIVE_LINE_LENGTH), line.pos);
+                        ctx.moveTo(Math.max(0, displayFixedCoord - INACTIVE_LINE_LENGTH), displayPos);
+                        ctx.lineTo(Math.min(canvas.width * scaleX, displayFixedCoord + INACTIVE_LINE_LENGTH), displayPos);
                     }
                 }
                 ctx.stroke();
                 ctx.setLineDash([]); // Reset dash for other lines
 
                 // Draw crosshair handle at the fixed coordinate
-                drawHandle(line.pos, line.fixedCoord, isActive ? color : `${color}99`);
+                drawHandle(displayPos, displayFixedCoord, isActive ? color : `${color}99`);
 
                 // Label
                 ctx.fillStyle = isActive ? color : `${color}99`;
-                ctx.font = '12px Arial';
+                ctx.font = `${12 / Math.min(scaleX, scaleY)}px Arial`; // Scale font size inversely to canvas scale
                 const label = `Ref ${index + 1}`;
                 if (isVertical) {
-                    ctx.fillText(label, line.pos + 5, 15);
+                    ctx.fillText(label, displayPos + 5, 15);
                 } else {
-                    ctx.fillText(label, 5, line.pos - 5);
+                    ctx.fillText(label, 5, displayPos - 5);
                 }
             });}
 
@@ -1000,6 +1026,8 @@
                 const isCurrentSeries = seriesIndex === currentSeriesIndex;
 
                 seriesLines.forEach((line, lineIndex) => {
+                    const displayPos = line.pos * (isVertical ? scaleX : scaleY);
+                    const displayFixedCoord = line.fixedCoord * (isVertical ? scaleY : scaleX);
                     const isActive = draggingLine === line;
                     ctx.strokeStyle = isActive ? color.active : color.inactive;
                     ctx.lineWidth = 1.5;
@@ -1008,35 +1036,35 @@
                     if (isActive) {
                         // Draw full line when active
                         if (isVertical) {
-                            ctx.moveTo(line.pos, 0);
-                            ctx.lineTo(line.pos, canvas.height);
+                            ctx.moveTo(displayPos, 0);
+                            ctx.lineTo(displayPos, canvas.height * scaleY);
                         } else {
-                            ctx.moveTo(0, line.pos);
-                            ctx.lineTo(canvas.width, line.pos);
+                            ctx.moveTo(0, displayPos);
+                            ctx.lineTo(canvas.width * scaleX, displayPos);
                         }
                     } else {
                         // Draw short line around crosshair when inactive
                         if (isVertical) {
-                            ctx.moveTo(line.pos, Math.max(0, line.fixedCoord - INACTIVE_LINE_LENGTH));
-                            ctx.lineTo(line.pos, Math.min(canvas.height, line.fixedCoord + INACTIVE_LINE_LENGTH));
+                            ctx.moveTo(displayPos, Math.max(0, displayFixedCoord - INACTIVE_LINE_LENGTH));
+                            ctx.lineTo(displayPos, Math.min(canvas.height * scaleY, displayFixedCoord + INACTIVE_LINE_LENGTH));
                         } else {
-                            ctx.moveTo(Math.max(0, line.fixedCoord - INACTIVE_LINE_LENGTH), line.pos);
-                            ctx.lineTo(Math.min(canvas.width, line.fixedCoord + INACTIVE_LINE_LENGTH), line.pos);
+                            ctx.moveTo(Math.max(0, displayFixedCoord - INACTIVE_LINE_LENGTH), displayPos);
+                            ctx.lineTo(Math.min(canvas.width * scaleX, displayFixedCoord + INACTIVE_LINE_LENGTH), displayPos);
                         }
                     }
                     ctx.stroke();
 
                     // Draw crosshair handle at the fixed coordinate
-                    drawHandle(line.pos, line.fixedCoord, isActive ? color.active : color.inactive);
+                    drawHandle(displayPos, displayFixedCoord, isActive ? color.active : color.inactive);
 
                     // Label with series indicator
                     ctx.fillStyle = isActive ? color.active : color.inactive;
-                    ctx.font = '11px Arial';
+                    ctx.font = `${11 / Math.min(scaleX, scaleY)}px Arial`;
                     const label = `S${seriesIndex + 1}:${lineIndex + 1}`;
                     if (isVertical) {
-                        ctx.fillText(label, line.pos + 3, 30 + (seriesIndex * 15));
+                        ctx.fillText(label, displayPos + 3, 30 + (seriesIndex * 15));
                     } else {
-                        ctx.fillText(label, 5 + (seriesIndex * 35), line.pos - 5);
+                        ctx.fillText(label, 5 + (seriesIndex * 35), displayPos - 5);
                     }
                 });
             });}
@@ -1045,7 +1073,7 @@
         function drawHandle(linePos, fixedCoord, color) {
             const handleSize = 8;
             ctx.strokeStyle = color;
-            ctx.lineWidth = 1;
+            ctx.lineWidth = 1; // Handle line width can remain constant or scale
 
             if (isVertical) {
                 // Draw small crosshair at (linePos, fixedCoord)
