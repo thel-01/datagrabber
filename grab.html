@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart Data Grabber</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 24px;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 24px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        button.secondary {
+            background: #28a745;
+        }
+
+        button.secondary:hover {
+            background: #218838;
+        }
+
+        .series-indicator {
+            padding: 8px 16px;
+            background: #e7f3ff;
+            border: 1px solid #0066ff;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #0066ff;
+        }
+
+        .toggle-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .toggle-group label {
+            font-size: 14px;
+            color: #666;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            background: #fafafa;
+            margin-bottom: 20px;
+        }
+
+        .upload-area.active {
+            border-color: #007bff;
+            background: #f0f8ff;
+        }
+
+        .canvas-container {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            background: #fff;
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        .instructions {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #856404;
+        }
+
+        .scale-inputs {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-group label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .input-group input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .output-area {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 16px;
+            margin-top: 20px;
+        }
+
+        .output-area h3 {
+            margin-bottom: 12px;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .output-area pre {
+            background: white;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre;
+        }
+
+        .line-label {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            pointer-events: none;
+        }
+
+        .status {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chart Data Grabber</h1>
+
+        <div id="uploadArea" class="upload-area">
+            <p style="font-size: 16px; color: #666; margin-bottom: 12px;">
+                <strong>Paste an image from clipboard (Ctrl/Cmd + V)</strong>
+            </p>
+            <p style="font-size: 14px; color: #999;">
+                Or drag and drop a PNG/JPEG file here
+            </p>
+            <input type="file" id="fileInput" accept="image/png,image/jpeg" style="display: none;">
+            <button onclick="document.getElementById('fileInput').click()" style="margin-top: 12px;">
+                Browse Files
+            </button>
+        </div>
+
+        <div id="workArea" class="hidden">
+            <div class="controls">
+                <div class="toggle-group">
+                    <input type="checkbox" id="orientationToggle">
+                    <label for="orientationToggle">Vertical Orientation</label>
+                </div>
+                <div class="series-indicator" id="seriesIndicator">Series 1</div>
+                <button id="newSeriesBtn" class="secondary">New Series</button>
+                <button id="resetBtn">Reset All</button>
+                <button id="clearLinesBtn">Clear Lines</button>
+            </div>
+
+            <div class="instructions">
+                <strong>Step 1:</strong> Set scale - Click to place 2 reference lines, then enter their values below.<br>
+                <strong>Step 2:</strong> Click to place data point lines. Values will be calculated automatically.<br>
+                <strong>Tip:</strong> Drag lines from their crosshair handles to adjust. Press Ctrl+Z to undo.
+            </div>
+
+            <div class="status" id="status">Click on the image to set the first scale reference line</div>
+
+            <div class="scale-inputs" id="scaleInputs">
+                <div class="input-group">
+                    <label for="scale1Value">Reference Line 1 Value:</label>
+                    <input type="number" id="scale1Value" step="any" placeholder="e.g., 0">
+                </div>
+                <div class="input-group">
+                    <label for="scale2Value">Reference Line 2 Value:</label>
+                    <input type="number" id="scale2Value" step="any" placeholder="e.g., 100">
+                </div>
+            </div>
+
+            <div class="canvas-container" id="canvasContainer">
+                <canvas id="canvas"></canvas>
+            </div>
+
+            <div class="output-area">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="margin: 0;">Data Output (Tab-delimited for Excel)</h3>
+                    <button id="copyBtn" class="secondary">Copy to Clipboard</button>
+                </div>
+                <pre id="output">No data points yet. Click on the chart to add data points.</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const workArea = document.getElementById('workArea');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const fileInput = document.getElementById('fileInput');
+        const orientationToggle = document.getElementById('orientationToggle');
+        const resetBtn = document.getElementById('resetBtn');
+        const clearLinesBtn = document.getElementById('clearLinesBtn');
+        const newSeriesBtn = document.getElementById('newSeriesBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const seriesIndicator = document.getElementById('seriesIndicator');
+        const status = document.getElementById('status');
+        const output = document.getElementById('output');
+        const scale1Input = document.getElementById('scale1Value');
+        const scale2Input = document.getElementById('scale2Value');
+
+        let image = null;
+        let series = [[]]; // Array of series, each series contains lines
+        let currentSeriesIndex = 0;
+        let scaleLines = [];
+        let isVertical = false;
+        let draggingLine = null;
+        let dragOffset = 0;
+        let history = []; // For undo functionality
+        const DRAG_THRESHOLD = 10; // pixels - distance to detect if hovering over a handle
+        const DRAG_SENSITIVITY = 0.3; // lower = less sensitive (slower drag)
+        const INACTIVE_LINE_LENGTH = 30; // pixels - length of inactive lines on each side of crosshair
+        const SERIES_COLORS = [
+            { active: '#0066ff', inactive: '#0066ff66' },
+            { active: '#ff6600', inactive: '#ff660066' },
+            { active: '#00cc66', inactive: '#00cc6666' },
+            { active: '#cc00cc', inactive: '#cc00cc66' },
+            { active: '#ffcc00', inactive: '#ffcc0066' },
+            { active: '#00cccc', inactive: '#00cccc66' }
+        ];
+
+        // Undo functionality (Ctrl+Z)
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                undo();
+            }
+        });
+
+        // Paste from clipboard
+        document.addEventListener('paste', (e) => {
+            const items = e.clipboardData.items;
+            for (let item of items) {
+                if (item.type.indexOf('image') !== -1) {
+                    const blob = item.getAsFile();
+                    loadImage(blob);
+                    e.preventDefault();
+                }
+            }
+        });
+
+        // File input
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                loadImage(e.target.files[0]);
+            }
+        });
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('active');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('active');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('active');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.match(/image\/(png|jpeg)/)) {
+                loadImage(files[0]);
+            }
+        });
+
+        function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                image = new Image();
+                image.onload = () => {
+                    canvas.width = image.width;
+                    canvas.height = image.height;
+                    uploadArea.classList.add('hidden');
+                    workArea.classList.remove('hidden');
+                    reset();
+                    draw();
+                };
+                image.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function saveState() {
+            history.push({
+                series: JSON.parse(JSON.stringify(series)),
+                currentSeriesIndex: currentSeriesIndex,
+                scaleLines: JSON.parse(JSON.stringify(scaleLines)),
+                scale1Value: scale1Input.value,
+                scale2Value: scale2Input.value
+            });
+        }
+
+        function undo() {
+            if (history.length === 0) return;
+
+            const state = history.pop();
+            series = state.series;
+            currentSeriesIndex = state.currentSeriesIndex;
+            scaleLines = state.scaleLines;
+            scale1Input.value = state.scale1Value;
+            scale2Input.value = state.scale2Value;
+
+            updateSeriesIndicator();
+            updateStatus();
+            updateOutput();
+            draw();
+        }
+
+        function updateSeriesIndicator() {
+            seriesIndicator.textContent = `Series ${currentSeriesIndex + 1}`;
+            const color = SERIES_COLORS[currentSeriesIndex % SERIES_COLORS.length];
+            seriesIndicator.style.backgroundColor = color.inactive.replace('66', '33');
+            seriesIndicator.style.borderColor = color.active;
+            seriesIndicator.style.color = color.active;
+        }
+
+        function reset() {
+            series = [[]];
+            currentSeriesIndex = 0;
+            scaleLines = [];
+            draggingLine = null;
+            history = [];
+            scale1Input.value = '';
+            scale2Input.value = '';
+            updateSeriesIndicator();
+            updateStatus();
+            updateOutput();
+            draw();
+        }
+
+        orientationToggle.addEventListener('change', (e) => {
+            isVertical = e.target.checked;
+            draw();
+        });
+
+        resetBtn.addEventListener('click', reset);
+
+        clearLinesBtn.addEventListener('click', () => {
+            saveState();
+            series[currentSeriesIndex] = [];
+            updateStatus();
+            updateOutput();
+            draw();
+        });
+
+        newSeriesBtn.addEventListener('click', () => {
+            saveState();
+            currentSeriesIndex = series.length;
+            series.push([]);
+            updateSeriesIndicator();
+            updateStatus();
+            updateOutput();
+            draw();
+        });
+
+        copyBtn.addEventListener('click', () => {
+            const text = generateOutputText();
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                }, 2000);
+            }).catch(err => {
+                alert('Failed to copy to clipboard. Please select and copy manually.');
+            });
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Check if clicking on an existing line handle
+            const clickedLine = findLineAtPoint(x, y);
+
+            if (clickedLine) {
+                draggingLine = clickedLine;
+                const currentPos = isVertical ? clickedLine.pos : clickedLine.pos;
+                dragOffset = (isVertical ? x : y) - currentPos;
+                e.preventDefault();
+                return;
+            }
+
+            // If not dragging, place a new line (save state first)
+            saveState();
+            if (scaleLines.length < 2) {
+                scaleLines.push({ pos: isVertical ? x : y, fixedCoord: isVertical ? y : x });
+                updateStatus();
+            } else if (scale1Input.value && scale2Input.value) {
+                series[currentSeriesIndex].push({ pos: isVertical ? x : y, fixedCoord: isVertical ? y : x });
+                updateStatus();
+                updateOutput();
+            }
+            draw();
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (draggingLine) {
+                // Apply drag sensitivity
+                const rawPos = (isVertical ? x : y) - dragOffset;
+                const currentPos = draggingLine.pos;
+                const delta = (rawPos - currentPos) * DRAG_SENSITIVITY;
+                draggingLine.pos = currentPos + delta;
+
+                updateOutput();
+                draw();
+                e.preventDefault();
+            } else {
+                // Update cursor if hovering over a handle
+                const hoveredLine = findLineAtPoint(x, y);
+                canvas.style.cursor = hoveredLine ? 'grab' : 'crosshair';
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (draggingLine) {
+                saveState(); // Save state after dragging completes
+                canvas.style.cursor = 'crosshair';
+            }
+            draggingLine = null;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            draggingLine = null;
+            canvas.style.cursor = 'crosshair';
+        });
+
+        function findLineAtPoint(x, y) {
+            // Check scale lines first
+            for (let line of scaleLines) {
+                if (isNearHandle(x, y, line)) {
+                    return line;
+                }
+            }
+            // Then check data lines from all series
+            for (let seriesLines of series) {
+                for (let line of seriesLines) {
+                    if (isNearHandle(x, y, line)) {
+                        return line;
+                    }
+                }
+            }
+            return null;
+        }
+
+        function isNearHandle(x, y, line) {
+            if (isVertical) {
+                return Math.abs(x - line.pos) < DRAG_THRESHOLD &&
+                       Math.abs(y - line.fixedCoord) < DRAG_THRESHOLD;
+            } else {
+                return Math.abs(y - line.pos) < DRAG_THRESHOLD &&
+                       Math.abs(x - line.fixedCoord) < DRAG_THRESHOLD;
+            }
+        }
+
+        scale1Input.addEventListener('input', updateOutput);
+        scale2Input.addEventListener('input', updateOutput);
+
+        function updateStatus() {
+            if (scaleLines.length === 0) {
+                status.textContent = 'Click on the image to set the first scale reference line';
+            } else if (scaleLines.length === 1) {
+                status.textContent = 'Click to set the second scale reference line';
+            } else if (!scale1Input.value || !scale2Input.value) {
+                status.textContent = 'Enter the values for both reference lines above';
+            } else {
+                const currentSeriesLines = series[currentSeriesIndex] || [];
+                status.textContent = `Scale set! Click to add data points to Series ${currentSeriesIndex + 1}. (${currentSeriesLines.length} data point${currentSeriesLines.length !== 1 ? 's' : ''} in current series)`;
+            }
+        }
+
+        function draw() {
+            if (!image) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(image, 0, 0);
+
+            // Draw scale lines (red)
+            scaleLines.forEach((line, index) => {
+                const isActive = draggingLine === line;
+                ctx.strokeStyle = isActive ? '#ff0000' : '#ff000066';
+                ctx.lineWidth = 2;
+
+                ctx.beginPath();
+                if (isActive) {
+                    // Draw full line when active
+                    if (isVertical) {
+                        ctx.moveTo(line.pos, 0);
+                        ctx.lineTo(line.pos, canvas.height);
+                    } else {
+                        ctx.moveTo(0, line.pos);
+                        ctx.lineTo(canvas.width, line.pos);
+                    }
+                } else {
+                    // Draw short line around crosshair when inactive
+                    if (isVertical) {
+                        ctx.moveTo(line.pos, Math.max(0, line.fixedCoord - INACTIVE_LINE_LENGTH));
+                        ctx.lineTo(line.pos, Math.min(canvas.height, line.fixedCoord + INACTIVE_LINE_LENGTH));
+                    } else {
+                        ctx.moveTo(Math.max(0, line.fixedCoord - INACTIVE_LINE_LENGTH), line.pos);
+                        ctx.lineTo(Math.min(canvas.width, line.fixedCoord + INACTIVE_LINE_LENGTH), line.pos);
+                    }
+                }
+                ctx.stroke();
+
+                // Draw crosshair handle at the fixed coordinate
+                drawHandle(line.pos, line.fixedCoord, isActive ? '#ff0000' : '#ff000066');
+
+                // Label
+                ctx.fillStyle = isActive ? '#ff0000' : '#ff000066';
+                ctx.font = '12px Arial';
+                const label = `Ref ${index + 1}`;
+                if (isVertical) {
+                    ctx.fillText(label, line.pos + 5, 15);
+                } else {
+                    ctx.fillText(label, 5, line.pos - 5);
+                }
+            });
+
+            // Draw data lines from all series
+            series.forEach((seriesLines, seriesIndex) => {
+                const color = SERIES_COLORS[seriesIndex % SERIES_COLORS.length];
+                const isCurrentSeries = seriesIndex === currentSeriesIndex;
+
+                seriesLines.forEach((line, lineIndex) => {
+                    const isActive = draggingLine === line;
+                    ctx.strokeStyle = isActive ? color.active : color.inactive;
+                    ctx.lineWidth = 1.5;
+
+                    ctx.beginPath();
+                    if (isActive) {
+                        // Draw full line when active
+                        if (isVertical) {
+                            ctx.moveTo(line.pos, 0);
+                            ctx.lineTo(line.pos, canvas.height);
+                        } else {
+                            ctx.moveTo(0, line.pos);
+                            ctx.lineTo(canvas.width, line.pos);
+                        }
+                    } else {
+                        // Draw short line around crosshair when inactive
+                        if (isVertical) {
+                            ctx.moveTo(line.pos, Math.max(0, line.fixedCoord - INACTIVE_LINE_LENGTH));
+                            ctx.lineTo(line.pos, Math.min(canvas.height, line.fixedCoord + INACTIVE_LINE_LENGTH));
+                        } else {
+                            ctx.moveTo(Math.max(0, line.fixedCoord - INACTIVE_LINE_LENGTH), line.pos);
+                            ctx.lineTo(Math.min(canvas.width, line.fixedCoord + INACTIVE_LINE_LENGTH), line.pos);
+                        }
+                    }
+                    ctx.stroke();
+
+                    // Draw crosshair handle at the fixed coordinate
+                    drawHandle(line.pos, line.fixedCoord, isActive ? color.active : color.inactive);
+
+                    // Label with series indicator
+                    ctx.fillStyle = isActive ? color.active : color.inactive;
+                    ctx.font = '11px Arial';
+                    const label = `S${seriesIndex + 1}:${lineIndex + 1}`;
+                    if (isVertical) {
+                        ctx.fillText(label, line.pos + 3, 30 + (seriesIndex * 15));
+                    } else {
+                        ctx.fillText(label, 5 + (seriesIndex * 35), line.pos - 5);
+                    }
+                });
+            });
+        }
+
+        function drawHandle(linePos, fixedCoord, color) {
+            const handleSize = 8;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+
+            if (isVertical) {
+                // Draw small crosshair at (linePos, fixedCoord)
+                ctx.beginPath();
+                ctx.moveTo(linePos - handleSize, fixedCoord);
+                ctx.lineTo(linePos + handleSize, fixedCoord);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(linePos, fixedCoord - handleSize);
+                ctx.lineTo(linePos, fixedCoord + handleSize);
+                ctx.stroke();
+            } else {
+                // Draw small crosshair at (fixedCoord, linePos)
+                ctx.beginPath();
+                ctx.moveTo(fixedCoord - handleSize, linePos);
+                ctx.lineTo(fixedCoord + handleSize, linePos);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(fixedCoord, linePos - handleSize);
+                ctx.lineTo(fixedCoord, linePos + handleSize);
+                ctx.stroke();
+            }
+        }
+
+        function calculateValue(position) {
+            if (scaleLines.length < 2 || !scale1Input.value || !scale2Input.value) {
+                return null;
+            }
+
+            const pos1 = scaleLines[0].pos;
+            const pos2 = scaleLines[1].pos;
+            const val1 = parseFloat(scale1Input.value);
+            const val2 = parseFloat(scale2Input.value);
+
+            // Linear interpolation
+            const ratio = (position - pos1) / (pos2 - pos1);
+            const value = val1 + ratio * (val2 - val1);
+
+            return value.toFixed(2);
+        }
+
+        function generateOutputText() {
+            if (!scale1Input.value || !scale2Input.value) {
+                return 'No data points yet. Click on the chart to add data points.';
+            }
+
+            // Check if any series has data
+            const hasData = series.some(s => s.length > 0);
+            if (!hasData) {
+                return 'No data points yet. Click on the chart to add data points.';
+            }
+
+            // Find max number of rows needed
+            const maxRows = Math.max(...series.map(s => s.length));
+
+            // Build header
+            let result = 'Index';
+            for (let i = 0; i < series.length; i++) {
+                if (series[i].length > 0) {
+                    result += `\tSeries ${i + 1}`;
+                }
+            }
+            result += '\n';
+
+            // Build data rows
+            for (let row = 0; row < maxRows; row++) {
+                result += (row + 1);
+                for (let seriesIndex = 0; seriesIndex < series.length; seriesIndex++) {
+                    if (series[seriesIndex].length > 0) {
+                        const line = series[seriesIndex][row];
+                        if (line) {
+                            const value = calculateValue(line.pos);
+                            result += `\t${value}`;
+                        } else {
+                            result += '\t';
+                        }
+                    }
+                }
+                result += '\n';
+            }
+
+            return result;
+        }
+
+        function updateOutput() {
+            output.textContent = generateOutputText();
+        }
+    </script>
+</body>
+</html>
