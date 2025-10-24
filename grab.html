@@ -26,6 +26,31 @@
             padding: 24px;
         }
 
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .tab-link {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            margin-bottom: -1px;
+            font-size: 16px;
+            color: #666;
+        }
+
+        .tab-link.active {
+            border-color: #ddd;
+            border-bottom: 1px solid white;
+            border-radius: 4px 4px 0 0;
+            background: white;
+            color: #007bff;
+            font-weight: 600;
+        }
+
         h1 {
             margin-bottom: 20px;
             color: #333;
@@ -68,14 +93,25 @@
             background: #218838;
         }
 
-        .series-indicator {
-            padding: 8px 16px;
-            background: #e7f3ff;
-            border: 1px solid #0066ff;
+        .series-control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            border: 1px solid #ddd;
             border-radius: 4px;
+            background-color: #f8f9fa;
+        }
+
+        .series-control-group label {
             font-size: 14px;
-            font-weight: 600;
-            color: #0066ff;
+            color: #333;
+        }
+
+        #seriesSelect {
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
         }
 
         .toggle-group {
@@ -202,12 +238,61 @@
         .hidden {
             display: none;
         }
+
+        /* Draggable Modal for Scale Input */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.1);
+            z-index: 999;
+        }
+
+        .modal-content {
+            position: absolute;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            border: 1px solid #ccc;
+            padding: 16px;
+            width: 280px;
+            z-index: 1000;
+        }
+
+        .modal-header {
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #eee;
+            cursor: move;
+            user-select: none;
+        }
+
+        .modal-header h4 {
+            font-size: 16px;
+            color: #333;
+            margin: 0;
+        }
+
+        .modal-body .input-group {
+            margin-bottom: 12px;
+        }
+
+
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Chart Data Grabber</h1>
 
+        <div class="tabs">
+            <div class="tab-link active" id="tab1">Step 1: Upload Image</div>
+            <div class="tab-link" id="tab2">Step 2: Set Scale</div>
+            <div class="tab-link" id="tab3">Step 3: Grab Data</div>
+        </div>
+
+        <div id="step1Content">
         <div id="uploadArea" class="upload-area">
             <p style="font-size: 16px; color: #666; margin-bottom: 12px;">
                 <strong>Paste an image from clipboard (Ctrl/Cmd + V)</strong>
@@ -220,42 +305,44 @@
                 Browse Files
             </button>
         </div>
+        </div>
 
-        <div id="workArea" class="hidden">
-            <div class="controls">
-                <div class="toggle-group">
-                    <input type="checkbox" id="orientationToggle">
-                    <label for="orientationToggle">Vertical Orientation</label>
-                </div>
-                <div class="series-indicator" id="seriesIndicator">Series 1</div>
-                <button id="newSeriesBtn" class="secondary">New Series</button>
-                <button id="resetBtn">Reset All</button>
-                <button id="clearLinesBtn">Clear Lines</button>
-            </div>
+        <div id="step2Content" class="hidden">
+             <div class="controls">
+                 <div class="toggle-group">
+                     <input type="checkbox" id="orientationToggle">
+                     <label for="orientationToggle">Vertical Orientation</label>
+                 </div>
+                 <button id="resetBtn">Reset All</button>
+             </div>
+             <div class="instructions">
+                 <strong>Instructions:</strong> Click on the image to place 2 reference lines, then enter their values below.
+                 <br><strong>Tip:</strong> Drag lines from their crosshair handles to adjust. Press Ctrl+Z to undo.
+             </div>
+             <div class="status" id="status"></div>
+        </div>
 
-            <div class="instructions">
-                <strong>Step 1:</strong> Set scale - Click to place 2 reference lines, then enter their values below.<br>
-                <strong>Step 2:</strong> Click to place data point lines. Values will be calculated automatically.<br>
-                <strong>Tip:</strong> Drag lines from their crosshair handles to adjust. Press Ctrl+Z to undo.
-            </div>
+        <div id="step3Content" class="hidden">
+             <div class="controls">
+                 <div class="series-control-group">
+                    <label for="seriesSelect">Current Series:</label>
+                    <select id="seriesSelect"></select>
+                 </div>
+                 <button id="newSeriesBtn" class="secondary">New Series</button>
+                 <button id="clearLinesBtn">Clear Data Points</button>
+             </div>
+             <div class="instructions">
+                 <strong>Instructions:</strong> Click on the image to place data points. Values will be calculated automatically.
+                 <br><strong>Tip:</strong> Drag lines from their crosshair handles to adjust. Press Ctrl+Z to undo.
+             </div>
+        </div>
 
-            <div class="status" id="status">Click on the image to set the first scale reference line</div>
-
-            <div class="scale-inputs" id="scaleInputs">
-                <div class="input-group">
-                    <label for="scale1Value">Reference Line 1 Value:</label>
-                    <input type="number" id="scale1Value" step="any" placeholder="e.g., 0">
-                </div>
-                <div class="input-group">
-                    <label for="scale2Value">Reference Line 2 Value:</label>
-                    <input type="number" id="scale2Value" step="any" placeholder="e.g., 100">
-                </div>
-            </div>
-
-            <div class="canvas-container" id="canvasContainer">
-                <canvas id="canvas"></canvas>
-            </div>
-
+        <!-- Shared elements for steps 2 and 3 -->
+        <div id="canvasArea" class="hidden">
+             <div class="canvas-container" id="canvasContainer">
+                 <canvas id="canvas"></canvas>
+             </div>
+ 
             <div class="output-area">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                     <h3 style="margin: 0;">Data Output (Tab-delimited for Excel)</h3>
@@ -264,11 +351,36 @@
                 <pre id="output">No data points yet. Click on the chart to add data points.</pre>
             </div>
         </div>
+
+        <!-- Draggable Modal for Scale Input -->
+        <div id="scaleModal" class="modal-overlay hidden">
+            <div class="modal-content" id="scaleModalContent">
+                <div class="modal-header" id="scaleModalHeader">
+                    <h4 id="modalTitle">Set Reference Value</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group">
+                        <label for="scaleValueInput" id="modalLabel">Value:</label>
+                        <input type="number" id="scaleValueInput" step="any" placeholder="e.g., 0">
+                    </div>
+                    <button id="modalSubmitBtn">Set Value</button>
+                </div>
+            </div>
+        </div>
+
+
     </div>
 
     <script>
+        // Tab and Step Content elements
+        const tab1 = document.getElementById('tab1');
+        const tab2 = document.getElementById('tab2');
+        const tab3 = document.getElementById('tab3');
+        const step1Content = document.getElementById('step1Content');
+        const step2Content = document.getElementById('step2Content');
+        const step3Content = document.getElementById('step3Content');
+        const canvasArea = document.getElementById('canvasArea');
         const uploadArea = document.getElementById('uploadArea');
-        const workArea = document.getElementById('workArea');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const fileInput = document.getElementById('fileInput');
@@ -277,12 +389,18 @@
         const clearLinesBtn = document.getElementById('clearLinesBtn');
         const newSeriesBtn = document.getElementById('newSeriesBtn');
         const copyBtn = document.getElementById('copyBtn');
-        const seriesIndicator = document.getElementById('seriesIndicator');
+        const seriesSelect = document.getElementById('seriesSelect');
         const status = document.getElementById('status');
         const output = document.getElementById('output');
-        const scale1Input = document.getElementById('scale1Value');
-        const scale2Input = document.getElementById('scale2Value');
+        // Hidden inputs to store scale values
+        const scale1Input = document.createElement('input');
+        scale1Input.type = 'hidden';
+        const scale2Input = document.createElement('input');
+        scale2Input.type = 'hidden';
 
+        const scaleModal = document.getElementById('scaleModal');
+
+        let currentStep = 1;
         let image = null;
         let series = [[]]; // Array of series, each series contains lines
         let currentSeriesIndex = 0;
@@ -303,6 +421,52 @@
             { active: '#00cccc', inactive: '#00cccc66' }
         ];
 
+        // --- Tab Navigation ---
+        function goToStep(step) {
+            if (step === currentStep) return;
+
+            // Disable clicking future steps
+            if (step > 1 && !image) return;
+            if (step > 2 && (scaleLines.length < 2 || !scale1Input.value || !scale2Input.value)) return;
+
+            currentStep = step;
+
+            // Update tab active states
+            [tab1, tab2, tab3].forEach(t => t.classList.remove('active'));
+            document.getElementById(`tab${step}`).classList.add('active');
+
+            // Show/hide content
+            [step1Content, step2Content, step3Content, canvasArea].forEach(el => el.classList.add('hidden'));
+
+            if (step === 1) {
+                step1Content.classList.remove('hidden');
+                uploadArea.classList.remove('hidden');
+            } else if (step === 2) {
+                step2Content.classList.remove('hidden');
+                canvasArea.classList.remove('hidden');
+                output.parentElement.classList.add('hidden'); // Hide output in step 2
+            } else if (step === 3) {
+                step3Content.classList.remove('hidden');
+                canvasArea.classList.remove('hidden');
+                output.parentElement.classList.remove('hidden'); // Show output in step 3
+                updateSeriesControls(); // Ensure series picker is initialized
+            }
+            updateStatus();
+            draw();
+        }
+
+        tab1.addEventListener('click', () => goToStep(1));
+        tab2.addEventListener('click', () => goToStep(2));
+        tab3.addEventListener('click', () => goToStep(3));
+
+        function updateTabAccessibility() {
+            tab2.style.cursor = image ? 'pointer' : 'not-allowed';
+            tab2.style.color = image ? '' : '#ccc';
+            const scaleSet = scaleLines.length === 2 && scale1Input.value && scale2Input.value;
+            tab3.style.cursor = scaleSet ? 'pointer' : 'not-allowed';
+            tab3.style.color = scaleSet ? '' : '#ccc';
+        }
+
         // Undo functionality (Ctrl+Z)
         document.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
@@ -319,6 +483,7 @@
                     const blob = item.getAsFile();
                     loadImage(blob);
                     e.preventDefault();
+                    break;
                 }
             }
         });
@@ -356,10 +521,9 @@
                 image.onload = () => {
                     canvas.width = image.width;
                     canvas.height = image.height;
-                    uploadArea.classList.add('hidden');
-                    workArea.classList.remove('hidden');
                     reset();
-                    draw();
+                    goToStep(2);
+                    updateTabAccessibility();
                 };
                 image.src = e.target.result;
             };
@@ -386,56 +550,109 @@
             scale1Input.value = state.scale1Value;
             scale2Input.value = state.scale2Value;
 
-            updateSeriesIndicator();
+            // Restore state might change step validity, so update tabs and status
+            updateTabAccessibility();
+            updateSeriesControls();
             updateStatus();
             updateOutput();
             draw();
         }
 
-        function updateSeriesIndicator() {
-            seriesIndicator.textContent = `Series ${currentSeriesIndex + 1}`;
-            const color = SERIES_COLORS[currentSeriesIndex % SERIES_COLORS.length];
-            seriesIndicator.style.backgroundColor = color.inactive.replace('66', '33');
-            seriesIndicator.style.borderColor = color.active;
-            seriesIndicator.style.color = color.active;
+        function updateSeriesControls() {
+            // Clear existing options
+            seriesSelect.innerHTML = '';
+
+            // Populate dropdown with series
+            series.forEach((s, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `Series ${index + 1}`;
+                seriesSelect.appendChild(option);
+            });
+
+            // Set the selected option
+            seriesSelect.value = currentSeriesIndex;
+
+            // Update status and redraw
+            updateStatus();
+            draw();
         }
 
         function reset() {
-            series = [[]];
-            currentSeriesIndex = 0;
-            scaleLines = [];
-            draggingLine = null;
-            history = [];
-            scale1Input.value = '';
-            scale2Input.value = '';
-            updateSeriesIndicator();
+            saveState(); // Allow undoing the reset
+
+            if (currentStep === 2) {
+                // Reset only scale lines and their values
+                scaleLines = [];
+                scale1Input.value = '';
+                scale2Input.value = '';
+                // Also clear all data points, as they depend on the scale
+                series = [[]];
+                currentSeriesIndex = 0;
+                updateSeriesControls();
+            } else if (currentStep === 3) {
+                // In step 3, "Reset All" should probably clear all series data
+                series = [[]];
+                currentSeriesIndex = 0;
+                updateSeriesControls();
+            } else {
+                // Full reset (e.g., from orientation change or new image)
+                series = [[]];
+                currentSeriesIndex = 0;
+                scaleLines = [];
+                draggingLine = null;
+                history = []; // Clear history on full reset
+                scale1Input.value = '';
+                scale2Input.value = '';
+                if (!image) goToStep(1); // If no image, go back to step 1
+            }
             updateStatus();
-            updateOutput();
+            updateOutput(); // This also calls updateTabAccessibility
             draw();
         }
 
         orientationToggle.addEventListener('change', (e) => {
             isVertical = e.target.checked;
-            draw();
+            reset(); // Reset lines on orientation change as positions are relative
         });
 
-        resetBtn.addEventListener('click', reset);
+        resetBtn.addEventListener('click', () => {
+            // The reset button should only reset the current step's data,
+            // not the entire application state.
+            // We can call reset() which is now context-aware.
+            reset();
+        });
 
         clearLinesBtn.addEventListener('click', () => {
             saveState();
-            series[currentSeriesIndex] = [];
-            updateStatus();
-            updateOutput();
-            draw();
+            if (currentSeriesIndex > 0) {
+                // If it's not the first series, remove it entirely
+                series.splice(currentSeriesIndex, 1);
+                // Adjust the current index to a valid one (the previous one)
+                currentSeriesIndex = Math.max(0, currentSeriesIndex - 1);
+                updateSeriesControls(); // Rebuilds dropdown, updates status, and redraws
+            } else {
+                // If it's the first series, just clear its data points
+                series[currentSeriesIndex] = [];
+                // We need to manually update status and redraw since updateSeriesControls isn't called
+                updateStatus();
+                draw();
+            }
+            updateOutput(); // Update the text output area
         });
 
         newSeriesBtn.addEventListener('click', () => {
             saveState();
             currentSeriesIndex = series.length;
             series.push([]);
-            updateSeriesIndicator();
+            updateSeriesControls();
+        });
+
+        seriesSelect.addEventListener('change', (e) => {
+            saveState();
+            currentSeriesIndex = parseInt(e.target.value, 10);
+            // No need to call updateSeriesControls, just update status and redraw
             updateStatus();
-            updateOutput();
             draw();
         });
 
@@ -470,13 +687,21 @@
 
             // If not dragging, place a new line (save state first)
             saveState();
-            if (scaleLines.length < 2) {
+            if (currentStep === 2 && scaleLines.length < 2) {
                 scaleLines.push({ pos: isVertical ? x : y, fixedCoord: isVertical ? y : x });
-                updateStatus();
-            } else if (scale1Input.value && scale2Input.value) {
+                if (scaleLines.length === 2) {
+                    showScaleModal(2, e.clientX, e.clientY);
+                    updateTabAccessibility();
+                }
+            } else if (currentStep === 3 && scale1Input.value && scale2Input.value) {
                 series[currentSeriesIndex].push({ pos: isVertical ? x : y, fixedCoord: isVertical ? y : x });
-                updateStatus();
                 updateOutput();
+            } else {
+                history.pop(); // Don't save state if no action was taken
+            }
+            updateStatus();
+            if (currentStep === 2 && scaleLines.length === 1) {
+                showScaleModal(1, e.clientX, e.clientY);
             }
             draw();
         });
@@ -548,17 +773,86 @@
         scale2Input.addEventListener('input', updateOutput);
 
         function updateStatus() {
-            if (scaleLines.length === 0) {
-                status.textContent = 'Click on the image to set the first scale reference line';
-            } else if (scaleLines.length === 1) {
-                status.textContent = 'Click to set the second scale reference line';
-            } else if (!scale1Input.value || !scale2Input.value) {
-                status.textContent = 'Enter the values for both reference lines above';
-            } else {
-                const currentSeriesLines = series[currentSeriesIndex] || [];
-                status.textContent = `Scale set! Click to add data points to Series ${currentSeriesIndex + 1}. (${currentSeriesLines.length} data point${currentSeriesLines.length !== 1 ? 's' : ''} in current series)`;
+            let statusText = '';
+            if (currentStep === 2) {
+                if (scaleLines.length === 0) {
+                    statusText = 'Click on the image to set the first scale reference line.';
+                } else if (scaleLines.length === 1) {
+                    statusText = 'Click to set the second scale reference line.';
+                } else if (!scale1Input.value || !scale2Input.value) {
+                    statusText = 'Enter the values for both reference lines above.';
+                } else {
+                    statusText = 'Scale set! You can now proceed to Step 3 to grab data points.';
+                }
+            } else if (currentStep === 3) {
+                 const currentSeriesLines = series[currentSeriesIndex] || [];
+                 statusText = `Click to add data points to Series ${currentSeriesIndex + 1}. (${currentSeriesLines.length} data point${currentSeriesLines.length !== 1 ? 's' : ''} in current series)`;
             }
+            status.textContent = statusText;
+            updateTabAccessibility();
         }
+
+        // --- Scale Input Modal Logic ---
+        const scaleModalContent = document.getElementById('scaleModalContent');
+        const scaleModalHeader = document.getElementById('scaleModalHeader');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalLabel = document.getElementById('modalLabel');
+        const scaleValueInput = document.getElementById('scaleValueInput');
+        const modalSubmitBtn = document.getElementById('modalSubmitBtn');
+        let currentModalRef = 0;
+
+        function showScaleModal(refNumber, x, y) {
+            currentModalRef = refNumber;
+            modalTitle.textContent = `Set Reference ${refNumber} Value`;
+            modalLabel.htmlFor = `scaleValueInput`;
+            modalLabel.textContent = `Reference Line ${refNumber} Value:`;
+            scaleValueInput.value = refNumber === 1 ? scale1Input.value : scale2Input.value;
+            
+            // Position modal near the click event
+            scaleModalContent.style.left = `${x + 20}px`;
+            scaleModalContent.style.top = `${y - 40}px`;
+
+            scaleModal.classList.remove('hidden');
+            scaleValueInput.focus();
+            scaleValueInput.select();
+        }
+
+        function hideScaleModal() {
+            scaleModal.classList.add('hidden');
+            updateOutput();
+            updateTabAccessibility();
+            draw();
+        }
+
+        modalSubmitBtn.addEventListener('click', () => {
+            if (currentModalRef === 1) {
+                scale1Input.value = scaleValueInput.value;
+            } else {
+                scale2Input.value = scaleValueInput.value;
+            }
+            hideScaleModal();
+        });
+
+        scaleValueInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                modalSubmitBtn.click();
+            }
+        });
+
+        // Drag logic for the modal
+        let isDraggingModal = false;
+        let modalOffsetX, modalOffsetY;
+        scaleModalHeader.addEventListener('mousedown', (e) => {
+            isDraggingModal = true;
+            modalOffsetX = e.clientX - scaleModalContent.offsetLeft;
+            modalOffsetY = e.clientY - scaleModalContent.offsetTop;
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!isDraggingModal) return;
+            scaleModalContent.style.left = `${e.clientX - modalOffsetX}px`;
+            scaleModalContent.style.top = `${e.clientY - modalOffsetY}px`;
+        });
+        document.addEventListener('mouseup', () => isDraggingModal = false);
 
         function draw() {
             if (!image) return;
@@ -567,11 +861,17 @@
             ctx.drawImage(image, 0, 0);
 
             // Draw scale lines (red)
-            scaleLines.forEach((line, index) => {
+            if (currentStep >= 2) { scaleLines.forEach((line, index) => {
+                const isScaleStep = currentStep === 2;
                 const isActive = draggingLine === line;
-                ctx.strokeStyle = isActive ? '#ff0000' : '#ff000066';
+                
+                let color = '#ff0000'; // Red for scale step
+                if (!isScaleStep) color = '#888888'; // Grey for data step
+
+                ctx.strokeStyle = isActive ? color : `${color}99`;
                 ctx.lineWidth = 2;
 
+                if (!isScaleStep) ctx.setLineDash([5, 5]); // Dashed in data step
                 ctx.beginPath();
                 if (isActive) {
                     // Draw full line when active
@@ -593,12 +893,13 @@
                     }
                 }
                 ctx.stroke();
+                ctx.setLineDash([]); // Reset dash for other lines
 
                 // Draw crosshair handle at the fixed coordinate
-                drawHandle(line.pos, line.fixedCoord, isActive ? '#ff0000' : '#ff000066');
+                drawHandle(line.pos, line.fixedCoord, isActive ? color : `${color}99`);
 
                 // Label
-                ctx.fillStyle = isActive ? '#ff0000' : '#ff000066';
+                ctx.fillStyle = isActive ? color : `${color}99`;
                 ctx.font = '12px Arial';
                 const label = `Ref ${index + 1}`;
                 if (isVertical) {
@@ -606,10 +907,11 @@
                 } else {
                     ctx.fillText(label, 5, line.pos - 5);
                 }
-            });
+            });}
 
             // Draw data lines from all series
-            series.forEach((seriesLines, seriesIndex) => {
+            if (currentStep === 3) {
+                series.forEach((seriesLines, seriesIndex) => {
                 const color = SERIES_COLORS[seriesIndex % SERIES_COLORS.length];
                 const isCurrentSeries = seriesIndex === currentSeriesIndex;
 
@@ -653,7 +955,7 @@
                         ctx.fillText(label, 5 + (seriesIndex * 35), line.pos - 5);
                     }
                 });
-            });
+            });}
         }
 
         function drawHandle(linePos, fixedCoord, color) {
@@ -748,7 +1050,10 @@
 
         function updateOutput() {
             output.textContent = generateOutputText();
+            updateTabAccessibility();
         }
+
+        updateTabAccessibility(); // Initial call
     </script>
 </body>
 </html>
