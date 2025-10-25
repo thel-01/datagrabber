@@ -129,6 +129,39 @@
             border: 1px solid #ccc;
         }
 
+        .format-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .format-control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .format-control-group label {
+            font-size: 13px;
+            color: #666;
+            white-space: nowrap;
+        }
+
+        .format-control-group input[type="number"] {
+            width: 60px;
+            padding: 4px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .format-control-group select {
+            padding: 4px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
         .toggle-group {
             display: flex;
             gap: 8px;
@@ -157,6 +190,12 @@
             text-align: center;
             background: #fafafa;
             margin-bottom: 20px;
+            /* Flex properties to center content vertically */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 300px; /* Taller by default */
         }
 
         .upload-area.active {
@@ -166,11 +205,11 @@
 
         .canvas-container {
             position: relative;
-            display: inline-block;
+            /* display: inline-block; */ /* Let the child canvas dictate the block layout */
             margin-bottom: 20px;
             border: 1px solid #ddd;
             background: #fff;
-            text-align: center; /* Center the canvas */
+            max-width: 100%; /* Ensure container can shrink */
         }
 
         #canvasArea {
@@ -180,6 +219,8 @@
         canvas {
             display: block;
             cursor: crosshair;
+            height: auto; /* Let width and aspect ratio determine height */
+            image-rendering: optimizeQuality; /* Optional: improve scaled image quality */
         }
 
         .instructions {
@@ -232,15 +273,56 @@
             color: #333;
         }
 
-        .output-area pre {
+        .output-area .output-table-container {
             background: white;
-            padding: 12px;
+            padding: 16px;
             border: 1px solid #ddd;
             border-radius: 4px;
             overflow-x: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            white-space: pre;
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .output-table {
+            width: auto;
+            min-width: 300px;
+            border-collapse: collapse;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            font-size: 14px;
+        }
+
+        .output-table thead th {
+            font-weight: 600;
+            text-align: left;
+            padding: 8px 16px;
+            color: #333;
+        }
+
+        .output-table thead th.series-header {
+            padding: 8px 16px;
+        }
+
+        .output-table thead th.series-header .series-pill {
+            display: inline-block;
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .output-table tbody td {
+            font-weight: 400;
+            text-align: left;
+            padding: 6px 16px;
+            color: #495057;
+        }
+
+        .output-table-container .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+            font-style: italic;
+            width: 100%;
         }
 
         .line-label {
@@ -299,10 +381,22 @@
             margin: 0;
         }
 
+        .modal-close-btn {
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            line-height: 1;
+            color: #888;
+            cursor: pointer;
+            padding: 0;
+        }
+
         .modal-body .input-group {
             margin-bottom: 12px;
         }
-
 
     </style>
 </head>
@@ -311,7 +405,7 @@
         <h1>Datagrabber</h1>
 
         <div class="tabs">
-            <div class="tab-link active" id="tab1">Upload Image</div>
+            <div class="tab-link active" id="tab1">1. Upload Image</div>
             <div class="tab-link" id="tab2">Set Scale</div>
             <div class="tab-link" id="tab3">Grab Data</div>
         </div>
@@ -327,10 +421,10 @@
                     </div>
                 </div>
                 <!-- Upload area is always here, but its container changes width -->
-                <div id="uploadAreaWrapper" style="flex: 1;"> 
-                    <div id="uploadAreaSpacer" class="hidden" style="height: 29px;"></div>
+                <div id="uploadAreaWrapper" style="flex: 1; display: flex; flex-direction: column;"> 
+                    <h3 style="margin-bottom: 10px; visibility: hidden;">&nbsp;</h3>
                     <div class="upload-area">
-                        <p id="uploadAreaMainText" style="font-size: 16px; color: #666; margin-bottom: 12px;"><strong>Paste an image from clipboard (Ctrl/Cmd + V)</strong></p>
+                        <p id="uploadAreaMainText" style="font-size: 16px; color: #666;"><strong>Paste an image from clipboard (Ctrl/Cmd + V)</strong></p>
                         <p style="font-size: 14px; color: #999;">Or drag and drop a PNG/JPEG file here</p>
                         <input type="file" id="fileInput" accept="image/png,image/jpeg" style="display: none;"><button onclick="document.getElementById('fileInput').click()" style="margin-top: 12px;">Browse Files</button>
                     </div>
@@ -379,11 +473,28 @@
              </div>
  
             <div class="output-area">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                    <h3 style="margin: 0;">Data Output (Tab-delimited for Excel)</h3>
-                    <button id="copyBtn" class="secondary">Copy to Clipboard</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 12px;">
+                    <h3 style="margin: 0;">Collected Data</h3>
+                    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                        <div class="format-controls">
+                            <div class="format-control-group">
+                                <label for="precisionInput">Decimals:</label>
+                                <input type="number" id="precisionInput" min="0" max="10" value="2">
+                            </div>
+                            <div class="format-control-group">
+                                <label for="separatorSelect">Separator:</label>
+                                <select id="separatorSelect">
+                                    <option value="." selected>Period (.)</option>
+                                    <option value=",">Comma (,)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button id="copyBtn" class="secondary">Copy to Clipboard</button>
+                    </div>
                 </div>
-                <pre id="output">No data points yet. Click on the chart to add data points.</pre>
+                <div class="output-table-container">
+                    <div id="output"></div>
+                </div>
             </div>
         </div>
 
@@ -391,12 +502,13 @@
         <div id="scaleModal" class="modal-overlay hidden">
             <div class="modal-content" id="scaleModalContent">
                 <div class="modal-header" id="scaleModalHeader">
+                    <button id="modalCloseBtn" class="modal-close-btn">&times;</button>
                     <h4 id="modalTitle">Set Reference Value</h4>
                 </div>
                 <div class="modal-body">
                     <div class="input-group">
                         <label for="scaleValueInput" id="modalLabel">Value:</label>
-                        <input type="number" id="scaleValueInput" step="any" placeholder="e.g., 0">
+                        <input type="text" id="scaleValueInput" placeholder="Enter numeric value">
                     </div>
                     <button id="modalSubmitBtn">Set Value</button>
                 </div>
@@ -418,7 +530,6 @@
         const uploadContainer = document.getElementById('uploadContainer');
         const imagePreviewWrapper = document.getElementById('imagePreviewWrapper');
         const uploadAreaWrapper = document.getElementById('uploadAreaWrapper');
-        const uploadAreaSpacer = document.getElementById('uploadAreaSpacer');
         const imagePreview = document.getElementById('imagePreview');
         const imageInfo = document.getElementById('imageInfo');
         const canvas = document.getElementById('canvas');
@@ -430,6 +541,8 @@
         const newSeriesBtn = document.getElementById('newSeriesBtn');
         const copyBtn = document.getElementById('copyBtn');
         const seriesSelect = document.getElementById('seriesSelect');
+        const precisionInput = document.getElementById('precisionInput');
+        const separatorSelect = document.getElementById('separatorSelect');
         const status = document.getElementById('status');
         const output = document.getElementById('output');
         // Hidden inputs to store scale values
@@ -480,17 +593,17 @@
             if (step === 1) {
                 step1Content.classList.remove('hidden');
                 if (image) {
+                    document.querySelector('.upload-area').style.flexGrow = '1'; // Allow upload area to grow
                     imagePreviewWrapper.classList.remove('hidden');
                     uploadContainer.style.justifyContent = ''; // Reset justification
                     uploadAreaWrapper.style.maxWidth = ''; // Allow it to take full flex width
-                    uploadAreaSpacer.classList.remove('hidden'); // Show spacer
                     uploadAreaMainText.innerHTML = '<strong>Paste a new image from clipboard (Ctrl/Cmd + V)</strong>';
                     // updateImagePreview() is now called directly after image.onload
                 } else {
+                    document.querySelector('.upload-area').style.flexGrow = '0'; // Don't grow when centered
                     imagePreviewWrapper.classList.add('hidden');
                     uploadContainer.style.justifyContent = 'center'; // Center the flex item
                     uploadAreaWrapper.style.maxWidth = '600px'; // Constrain width
-                    uploadAreaSpacer.classList.add('hidden'); // Hide spacer
                 }
             } else if (step === 2) {
                 step2Content.classList.remove('hidden');
@@ -598,6 +711,27 @@
             reader.readAsDataURL(file);
         }
 
+        function resizeCanvasToFit() {
+            if (!image) return;
+
+            // Available space: container width and a portion of viewport height
+            const container = document.getElementById('canvasContainer');
+            const availW = container.clientWidth || container.offsetWidth;
+            // Leave room for UI elements above and below the canvas
+            const availH = Math.max(300, window.innerHeight - 350); 
+
+            // Scale factor to "contain" the image in both dimensions, without upscaling
+            const scale = Math.min(availW / image.width, availH / image.height, 1);
+
+            // Set CSS size (visual size). Keep bitmap (canvas.width/height) = image dims
+            // so drawing math stays simple & precise.
+            canvas.style.width  = `${Math.round(image.width * scale)}px`;
+            canvas.style.height = `${Math.round(image.height * scale)}px`;
+
+            // Redraw to keep overlays crisp at current zoom
+            draw();
+        }
+
         function saveState() {
             history.push({
                 series: JSON.parse(JSON.stringify(series)),
@@ -649,6 +783,15 @@
             updateOutput();
             draw();
         }
+
+        // --- Wrap goToStep to ensure canvas is resized on layout changes ---
+        const originalGoToStep = goToStep;
+        goToStep = function(step, opts) {
+            originalGoToStep(step, opts);
+            // Ensure canvas fits after UI changes (e.g., output area appearing)
+            resizeCanvasToFit();
+        };
+        window.addEventListener('resize', resizeCanvasToFit);
 
         function updateSeriesControls() {
             // Clear existing options
@@ -746,6 +889,9 @@
             updateStatus();
             draw();
         });
+
+        precisionInput.addEventListener('input', updateOutput);
+        separatorSelect.addEventListener('change', updateOutput);
 
         copyBtn.addEventListener('click', () => {
             const text = generateOutputText();
@@ -857,12 +1003,11 @@
         }
 
         function getCanvasScale() {
-            if (!image || !canvas) return { scaleX: 1, scaleY: 1 };
-            const displayWidth = canvas.offsetWidth;
-            const displayHeight = canvas.offsetHeight;
+            if (!image) return { scaleX: 1, scaleY: 1 };
+            const rect = canvas.getBoundingClientRect(); // actual on-screen size
             return {
-                scaleX: displayWidth / image.width,
-                scaleY: displayHeight / image.height
+                scaleX: rect.width  / image.width,
+                scaleY: rect.height / image.height
             };
         }
 
@@ -906,6 +1051,7 @@
         const modalLabel = document.getElementById('modalLabel');
         const scaleValueInput = document.getElementById('scaleValueInput');
         const modalSubmitBtn = document.getElementById('modalSubmitBtn');
+        const modalCloseBtn = document.getElementById('modalCloseBtn');
         let currentModalRef = 0;
 
         function showScaleModal(refNumber, x, y) {
@@ -914,13 +1060,15 @@
             modalLabel.htmlFor = `scaleValueInput`;
             modalLabel.textContent = `Reference Line ${refNumber} Value:`;
             scaleValueInput.value = refNumber === 1 ? scale1Input.value : scale2Input.value;
-            
+            scaleValueInput.style.borderColor = ''; // Reset border color
+
             // Position modal near the click event
             scaleModalContent.style.left = `${x + 20}px`;
             scaleModalContent.style.top = `${y - 40}px`;
 
             scaleModal.classList.remove('hidden');
             scaleValueInput.focus();
+            handleModalInputChange(); // Check initial state for button
             scaleValueInput.select();
         }
 
@@ -932,11 +1080,18 @@
         }
 
         modalSubmitBtn.addEventListener('click', () => {
+            // Normalize the input value (handles both commas and periods)
+            const normalized = normalizeNumericInput(scaleValueInput.value);
+            if (normalized === null) return;
+
             if (currentModalRef === 1) {
-                scale1Input.value = scaleValueInput.value;
+                scale1Input.value = normalized;
             } else {
-                scale2Input.value = scaleValueInput.value;
+                scale2Input.value = normalized;
             }
+            // Clear the input for the next time the modal is opened
+            scaleValueInput.value = '';
+            scaleValueInput.style.borderColor = ''; // Reset border color
             hideScaleModal();
         });
 
@@ -945,6 +1100,44 @@
                 modalSubmitBtn.click();
             }
         });
+
+        modalCloseBtn.addEventListener('click', () => {
+            // Closing the modal should undo the point placement that triggered it.
+            // The state was saved right before the point was added.
+            undo();
+            hideScaleModal();
+        });
+
+        // Normalize user input to handle both commas and periods as decimal separators
+        function normalizeNumericInput(input) {
+            const trimmed = input.trim();
+            if (trimmed === '') return null;
+
+            // Replace comma with period for consistent decimal handling
+            const normalized = trimmed.replace(',', '.');
+
+            // Check if it's a valid number
+            const num = parseFloat(normalized);
+            if (isNaN(num)) return null;
+
+            return normalized;
+        }
+
+        // Disable/enable submit button based on input
+        function handleModalInputChange() {
+            const normalized = normalizeNumericInput(scaleValueInput.value);
+            const isValid = normalized !== null;
+            modalSubmitBtn.disabled = !isValid;
+
+            // Visual feedback for invalid input
+            if (scaleValueInput.value.trim() !== '' && !isValid) {
+                scaleValueInput.style.borderColor = '#dc3545';
+            } else {
+                scaleValueInput.style.borderColor = '';
+            }
+        }
+
+        scaleValueInput.addEventListener('input', handleModalInputChange);
 
         // Drag logic for the modal
         let isDraggingModal = false;
@@ -962,7 +1155,6 @@
         document.addEventListener('mouseup', () => isDraggingModal = false);
 
         function draw() {
-            const { scaleX, scaleY } = getCanvasScale();
             if (!image) return;
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -970,11 +1162,12 @@
 
             // Draw scale lines (red)
             if (currentStep >= 2) { scaleLines.forEach((line, index) => {
-                const displayPos = line.pos * (isVertical ? scaleX : scaleY);
-                const displayFixedCoord = line.fixedCoord * (isVertical ? scaleY : scaleX);
+                // line.pos and line.fixedCoord are already in canvas (original image) coordinates
+                const linePos = line.pos;
+                const fixedCoord = line.fixedCoord;
                 const isScaleStep = currentStep === 2;
                 const isActive = draggingLine === line;
-                
+
                 let color = '#ff0000'; // Red for scale step
                 if (!isScaleStep) color = '#888888'; // Grey for data step
 
@@ -986,36 +1179,36 @@
                 if (isActive) {
                     // Draw full line when active
                     if (isVertical) {
-                        ctx.moveTo(displayPos, 0);
-                        ctx.lineTo(displayPos, canvas.height * scaleY); // Use scaled canvas height for end point
+                        ctx.moveTo(linePos, 0);
+                        ctx.lineTo(linePos, canvas.height);
                     } else {
-                        ctx.moveTo(0, displayPos);
-                        ctx.lineTo(canvas.width * scaleX, displayPos); // Use scaled canvas width for end point
+                        ctx.moveTo(0, linePos);
+                        ctx.lineTo(canvas.width, linePos);
                     }
                 } else {
                     // Draw short line around crosshair when inactive
                     if (isVertical) {
-                        ctx.moveTo(displayPos, Math.max(0, displayFixedCoord - INACTIVE_LINE_LENGTH));
-                        ctx.lineTo(displayPos, Math.min(canvas.height * scaleY, displayFixedCoord + INACTIVE_LINE_LENGTH));
+                        ctx.moveTo(linePos, Math.max(0, fixedCoord - INACTIVE_LINE_LENGTH));
+                        ctx.lineTo(linePos, Math.min(canvas.height, fixedCoord + INACTIVE_LINE_LENGTH));
                     } else {
-                        ctx.moveTo(Math.max(0, displayFixedCoord - INACTIVE_LINE_LENGTH), displayPos);
-                        ctx.lineTo(Math.min(canvas.width * scaleX, displayFixedCoord + INACTIVE_LINE_LENGTH), displayPos);
+                        ctx.moveTo(Math.max(0, fixedCoord - INACTIVE_LINE_LENGTH), linePos);
+                        ctx.lineTo(Math.min(canvas.width, fixedCoord + INACTIVE_LINE_LENGTH), linePos);
                     }
                 }
                 ctx.stroke();
                 ctx.setLineDash([]); // Reset dash for other lines
 
                 // Draw crosshair handle at the fixed coordinate
-                drawHandle(displayPos, displayFixedCoord, isActive ? color : `${color}99`);
+                drawHandle(linePos, fixedCoord, isActive ? color : `${color}99`);
 
                 // Label
                 ctx.fillStyle = isActive ? color : `${color}99`;
-                ctx.font = `${12 / Math.min(scaleX, scaleY)}px Arial`; // Scale font size inversely to canvas scale
+                ctx.font = '12px Arial';
                 const label = `Ref ${index + 1}`;
                 if (isVertical) {
-                    ctx.fillText(label, displayPos + 5, 15);
+                    ctx.fillText(label, linePos + 5, 15);
                 } else {
-                    ctx.fillText(label, 5, displayPos - 5);
+                    ctx.fillText(label, 5, linePos - 5);
                 }
             });}
 
@@ -1026,8 +1219,9 @@
                 const isCurrentSeries = seriesIndex === currentSeriesIndex;
 
                 seriesLines.forEach((line, lineIndex) => {
-                    const displayPos = line.pos * (isVertical ? scaleX : scaleY);
-                    const displayFixedCoord = line.fixedCoord * (isVertical ? scaleY : scaleX);
+                    // line.pos and line.fixedCoord are already in canvas (original image) coordinates
+                    const linePos = line.pos;
+                    const fixedCoord = line.fixedCoord;
                     const isActive = draggingLine === line;
                     ctx.strokeStyle = isActive ? color.active : color.inactive;
                     ctx.lineWidth = 1.5;
@@ -1036,35 +1230,35 @@
                     if (isActive) {
                         // Draw full line when active
                         if (isVertical) {
-                            ctx.moveTo(displayPos, 0);
-                            ctx.lineTo(displayPos, canvas.height * scaleY);
+                            ctx.moveTo(linePos, 0);
+                            ctx.lineTo(linePos, canvas.height);
                         } else {
-                            ctx.moveTo(0, displayPos);
-                            ctx.lineTo(canvas.width * scaleX, displayPos);
+                            ctx.moveTo(0, linePos);
+                            ctx.lineTo(canvas.width, linePos);
                         }
                     } else {
                         // Draw short line around crosshair when inactive
                         if (isVertical) {
-                            ctx.moveTo(displayPos, Math.max(0, displayFixedCoord - INACTIVE_LINE_LENGTH));
-                            ctx.lineTo(displayPos, Math.min(canvas.height * scaleY, displayFixedCoord + INACTIVE_LINE_LENGTH));
+                            ctx.moveTo(linePos, Math.max(0, fixedCoord - INACTIVE_LINE_LENGTH));
+                            ctx.lineTo(linePos, Math.min(canvas.height, fixedCoord + INACTIVE_LINE_LENGTH));
                         } else {
-                            ctx.moveTo(Math.max(0, displayFixedCoord - INACTIVE_LINE_LENGTH), displayPos);
-                            ctx.lineTo(Math.min(canvas.width * scaleX, displayFixedCoord + INACTIVE_LINE_LENGTH), displayPos);
+                            ctx.moveTo(Math.max(0, fixedCoord - INACTIVE_LINE_LENGTH), linePos);
+                            ctx.lineTo(Math.min(canvas.width, fixedCoord + INACTIVE_LINE_LENGTH), linePos);
                         }
                     }
                     ctx.stroke();
 
                     // Draw crosshair handle at the fixed coordinate
-                    drawHandle(displayPos, displayFixedCoord, isActive ? color.active : color.inactive);
+                    drawHandle(linePos, fixedCoord, isActive ? color.active : color.inactive);
 
                     // Label with series indicator
                     ctx.fillStyle = isActive ? color.active : color.inactive;
-                    ctx.font = `${11 / Math.min(scaleX, scaleY)}px Arial`;
+                    ctx.font = '11px Arial';
                     const label = `S${seriesIndex + 1}:${lineIndex + 1}`;
                     if (isVertical) {
-                        ctx.fillText(label, displayPos + 3, 30 + (seriesIndex * 15));
+                        ctx.fillText(label, linePos + 3, 30 + (seriesIndex * 15));
                     } else {
-                        ctx.fillText(label, 5 + (seriesIndex * 35), displayPos - 5);
+                        ctx.fillText(label, 5 + (seriesIndex * 35), linePos - 5);
                     }
                 });
             });}
@@ -1114,54 +1308,131 @@
             const ratio = (position - pos1) / (pos2 - pos1);
             const value = val1 + ratio * (val2 - val1);
 
-            return value.toFixed(2);
+            return value;
         }
 
-        function generateOutputText() {
+        function formatValue(value) {
+            if (value === null || value === undefined || value === '') return '';
+
+            const precision = parseInt(precisionInput.value);
+            const separator = separatorSelect.value;
+
+            // Format with specified precision
+            let formatted = typeof value === 'number' ? value.toFixed(precision) : parseFloat(value).toFixed(precision);
+
+            // Replace decimal separator if comma is selected
+            if (separator === ',') {
+                formatted = formatted.replace('.', ',');
+            }
+
+            return formatted;
+        }
+
+        function generateOutputData() {
             if (!scale1Input.value || !scale2Input.value) {
-                return 'No data points yet. Click on the chart to add data points.';
+                return null;
             }
 
             // Check if any series has data
             const hasData = series.some(s => s.length > 0);
             if (!hasData) {
-                return 'No data points yet. Click on the chart to add data points.';
+                return null;
             }
+
+            // Sort each series by position coordinate (left-to-right for horizontal, top-to-bottom for vertical)
+            const sortedSeries = series.map(seriesData => {
+                if (seriesData.length === 0) return seriesData;
+
+                // Sort by the coordinate perpendicular to the measurement axis
+                // For horizontal charts: sort by fixedCoord (X position, left to right)
+                // For vertical charts: sort by fixedCoord (Y position, top to bottom)
+                return [...seriesData].sort((a, b) => a.fixedCoord - b.fixedCoord);
+            });
 
             // Find max number of rows needed
-            const maxRows = Math.max(...series.map(s => s.length));
+            const maxRows = Math.max(...sortedSeries.map(s => s.length));
 
             // Build header
-            let result = 'Index';
-            for (let i = 0; i < series.length; i++) {
-                if (series[i].length > 0) {
-                    result += `\tSeries ${i + 1}`;
+            const headers = ['Index'];
+            for (let i = 0; i < sortedSeries.length; i++) {
+                if (sortedSeries[i].length > 0) {
+                    headers.push(`Series ${i + 1}`);
                 }
             }
-            result += '\n';
 
             // Build data rows
+            const rows = [];
             for (let row = 0; row < maxRows; row++) {
-                result += (row + 1);
-                for (let seriesIndex = 0; seriesIndex < series.length; seriesIndex++) {
-                    if (series[seriesIndex].length > 0) {
-                        const line = series[seriesIndex][row];
+                const rowData = [row + 1];
+                for (let seriesIndex = 0; seriesIndex < sortedSeries.length; seriesIndex++) {
+                    if (sortedSeries[seriesIndex].length > 0) {
+                        const line = sortedSeries[seriesIndex][row];
                         if (line) {
                             const value = calculateValue(line.pos);
-                            result += `\t${value}`;
+                            const formatted = formatValue(value);
+                            rowData.push(formatted);
                         } else {
-                            result += '\t';
+                            rowData.push('');
                         }
                     }
                 }
-                result += '\n';
+                rows.push(rowData);
             }
 
+            return { headers, rows };
+        }
+
+        function generateOutputText() {
+            const data = generateOutputData();
+            if (!data) {
+                return 'No data points yet. Click on the chart to add data points.';
+            }
+
+            // Generate tab-delimited text
+            let result = data.headers.join('\t') + '\n';
+            for (const row of data.rows) {
+                result += row.join('\t') + '\n';
+            }
             return result;
         }
 
+        function generateOutputHTML() {
+            const data = generateOutputData();
+            if (!data) {
+                return '<div class="empty-state">No data points yet. Click on the chart to add data points.</div>';
+            }
+
+            // Generate HTML table
+            let html = '<table class="output-table"><thead><tr>';
+            for (let i = 0; i < data.headers.length; i++) {
+                const header = data.headers[i];
+
+                // Check if this is a Series header (not "Index")
+                if (header.startsWith('Series ')) {
+                    // Extract series number (e.g., "Series 1" -> index 0)
+                    const seriesNum = parseInt(header.split(' ')[1]) - 1;
+                    const color = SERIES_COLORS[seriesNum % SERIES_COLORS.length];
+                    // Use a faint background (0.2 opacity) with the active color
+                    const bgColor = color.active + '33'; // Add 33 for ~20% opacity
+                    html += `<th class="series-header"><span class="series-pill" style="background-color: ${bgColor};">${header}</span></th>`;
+                } else {
+                    html += `<th>${header}</th>`;
+                }
+            }
+            html += '</tr></thead><tbody>';
+            for (const row of data.rows) {
+                html += '<tr>';
+                for (const cell of row) {
+                    html += `<td>${cell}</td>`;
+                }
+                html += '</tr>';
+            }
+            html += '</tbody></table>';
+            return html;
+        }
+
         function updateOutput() {
-            output.textContent = generateOutputText();
+            output.innerHTML = generateOutputHTML();
             updateTabAccessibility();
         }
 
